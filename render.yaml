@@ -1,0 +1,25 @@
+# Render "Blueprint": tells Render how to run the backend.
+# The database is NOT created here - use a free Neon (or Supabase) Postgres and paste
+# its connection string into DATABASE_URL in the Render dashboard.
+services:
+  - type: web
+    name: al-habeeb-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: DATABASE_URL
+        sync: false # you type this value in the Render dashboard
+      - key: DATABASE_SSL
+        value: "true"
+      - key: CLIENT_URL
+        sync: false # your Vercel address, e.g. https://al-habeeb.vercel.app
+      - key: ADMIN_KEY
+        generateValue: true
+      - key: AUTO_MIGRATE
+        value: "true"
