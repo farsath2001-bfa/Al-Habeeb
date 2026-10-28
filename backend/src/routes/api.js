@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto'
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
 import { query } from '../db.js'
@@ -87,17 +88,63 @@ router.post(
   }),
 )
 
-// Read the messages (for the company). Protected by a secret key in the request header:
-//   curl -H "x-admin-key: YOUR_KEY" http://localhost:5000/api/inquiries
+// --- Admin: manage the messages (used by the /admin page on the website) ----
+// Everything below needs the secret ADMIN_KEY in the "x-admin-key" request header.
+// Wrong guesses are limited, and the key is compared in constant time.
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20, // only failed requests count
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts. Please try again later.' },
+})
+
+function requireAdmin(req, res, next) {
+  const expected = Buffer.from(process.env.ADMIN_KEY || '')
+  const given = Buffer.from(req.get('x-admin-key') || '')
+  const ok = expected.length > 0 && given.length === expected.length && timingSafeEqual(given, expected)
+  if (!ok) return res.status(401).json({ error: 'Unauthorized' })
+  next()
+}
+
+const INQUIRY_STATUSES = ['new', 'contacted', 'closed']
+
 router.get(
   '/inquiries',
-  wrap(async (req, res) => {
-    const key = process.env.ADMIN_KEY
-    if (!key || req.get('x-admin-key') !== key) {
-      return res.status(401).json({ error: 'Unauthorized' })
-    }
-    const { rows } = await query('SELECT * FROM inquiries ORDER BY created_at DESC LIMIT 200')
+  adminLimiter,
+  requireAdmin,
+  wrap(async (_req, res) => {
+    const { rows } = await query('SELECT * FROM inquiries ORDER BY created_at DESC LIMIT 500')
     res.json(rows)
+  }),
+)
+
+router.patch(
+  '/inquiries/:id',
+  adminLimiter,
+  requireAdmin,
+  wrap(async (req, res) => {
+    const id = Number(req.params.id)
+    const status = req.body?.status
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' })
+    if (!INQUIRY_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status' })
+    const { rows } = await query('UPDATE inquiries SET status = $1 WHERE id = $2 RETURNING *', [status, id])
+    if (!rows.length) return res.status(404).json({ error: 'Not found' })
+    res.json(rows[0])
+  }),
+)
+
+router.delete(
+  '/inquiries/:id',
+  adminLimiter,
+  requireAdmin,
+  wrap(async (req, res) => {
+    const id = Number(req.params.id)
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' })
+    const { rowCount } = await query('DELETE FROM inquiries WHERE id = $1', [id])
+    if (!rowCount) return res.status(404).json({ error: 'Not found' })
+    res.json({ ok: true })
   }),
 )
 

@@ -10,6 +10,7 @@ import { lazy, Suspense } from 'react'
 
 
 const Showcase = lazy(() => import('./pages/Showcase'))
+const Admin = lazy(() => import('./pages/Admin'))
 
 // Scroll to the top when changing page (or to the #section in the address).
 function ScrollManager() {
@@ -36,6 +37,7 @@ export default function App() {
       <Route path="/services" element={<Services />} />
       <Route path="/projects" element={<Projects />} />
       <Route path="/showcase" element={<Showcase />} />
+      <Route path="/admin" element={<Admin />} />
       <Route path="*" element={<Home />} />
     </Routes>
   </Suspense>
