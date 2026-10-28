@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
 import { query } from '../db.js'
+import { notifyNewInquiry } from '../notify.js'
 
 const router = Router()
 
@@ -83,6 +84,11 @@ router.post(
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id, created_at`,
       [name, email, phone || null, service || null, message],
+    )
+    // Fire-and-forget: the visitor gets their answer straight away, and an email problem
+    // is only logged (the message is already saved in the database).
+    notifyNewInquiry({ name, email, phone, service, message }).catch((err) =>
+      console.error('Email alert failed:', err.message),
     )
     res.status(201).json({ ok: true, id: rows[0].id })
   }),

@@ -23,3 +23,7 @@ services:
         generateValue: true
       - key: AUTO_MIGRATE
         value: "true"
+      - key: RESEND_API_KEY
+        sync: false # optional: email alerts for new leads (see README)
+      - key: NOTIFY_EMAIL
+        sync: false # optional: the address that receives the alerts
