@@ -22,7 +22,7 @@ router.get(
 router.get(
   '/services',
   wrap(async (_req, res) => {
-    const { rows } = await query('SELECT id, title, description, icon FROM services ORDER BY sort_order, id')
+    const { rows } = await query('SELECT id, title, description, icon, sort_order FROM services ORDER BY sort_order, id')
     res.json(rows)
   }),
 )
@@ -149,6 +149,187 @@ router.delete(
     const id = Number(req.params.id)
     if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' })
     const { rowCount } = await query('DELETE FROM inquiries WHERE id = $1', [id])
+    if (!rowCount) return res.status(404).json({ error: 'Not found' })
+    res.json({ ok: true })
+  }),
+)
+
+// --- Admin: add / edit / remove projects and services ------------------------
+const PROJECT_STATUSES = ['Design Concept', 'Under Construction', 'Completed']
+const SERVICE_ICONS = [
+  'building', 'gear', 'layers', 'bolt', 'clipboard', 'sofa', 'hardhat',
+  'handshake', 'home', 'shield', 'crane', 'blueprint', 'leaf',
+]
+
+const slugify = (text) =>
+  text
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 80)
+
+// Pictures must be a web address or a path on this site. Returns null (none), a string, or undefined (not allowed).
+const pictureUrl = (value) => {
+  const text = clean(value, 500)
+  if (!text) return null
+  if (/^https?:\/\//i.test(text) || (text.startsWith('/') && !text.startsWith('//'))) return text
+  return undefined
+}
+
+function parseProject(body = {}) {
+  const title = clean(body.title, 160)
+  const location = clean(body.location, 120)
+  const category = clean(body.category, 80)
+  const summary = clean(body.summary, 1000)
+  const status = body.status
+  const image = pictureUrl(body.image_url)
+
+  if (!title || !location || !category || !summary) {
+    return { error: 'Title, location, category and summary are required.' }
+  }
+  if (!PROJECT_STATUSES.includes(status)) return { error: 'Please choose a valid status.' }
+  if (image === undefined) return { error: 'Picture must be a web address (https://...) or a path starting with /.' }
+
+  let floors = null
+  if (body.floors !== '' && body.floors !== null && body.floors !== undefined) {
+    floors = Number(body.floors)
+    if (!Number.isInteger(floors) || floors < 1 || floors > 200) {
+      return { error: 'Floors must be a whole number from 1 to 200.' }
+    }
+  }
+  const slug = slugify(clean(body.slug, 80) || title)
+  if (!slug) return { error: 'Could not make a web address from the title.' }
+  return { values: [slug, title, location, category, status, summary, image, floors] }
+}
+
+function parseService(body = {}) {
+  const title = clean(body.title, 120)
+  const description = clean(body.description, 500)
+  const icon = SERVICE_ICONS.includes(body.icon) ? body.icon : 'building'
+  const order = body.sort_order === '' || body.sort_order == null ? 0 : Number(body.sort_order)
+
+  if (!title || !description) return { error: 'Title and description are required.' }
+  if (!Number.isInteger(order) || order < 0 || order > 999) return { error: 'Order must be a whole number from 0 to 999.' }
+  return { values: [title, description, icon, order] }
+}
+
+// Turns "already exists" database errors into a friendly message.
+const duplicate = (res, what) => res.status(409).json({ error: `${what} already exists. Please choose a different one.` })
+
+router.post(
+  '/projects',
+  adminLimiter,
+  requireAdmin,
+  wrap(async (req, res) => {
+    const { error, values } = parseProject(req.body)
+    if (error) return res.status(400).json({ error })
+    try {
+      const { rows } = await query(
+        `INSERT INTO projects (slug, title, location, category, status, summary, image_url, floors)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        values,
+      )
+      res.status(201).json(rows[0])
+    } catch (err) {
+      if (err.code === '23505') return duplicate(res, 'A project with this web address (slug)')
+      throw err
+    }
+  }),
+)
+
+router.put(
+  '/projects/:id',
+  adminLimiter,
+  requireAdmin,
+  wrap(async (req, res) => {
+    const id = Number(req.params.id)
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' })
+    const { error, values } = parseProject(req.body)
+    if (error) return res.status(400).json({ error })
+    try {
+      const { rows } = await query(
+        `UPDATE projects
+            SET slug = $1, title = $2, location = $3, category = $4, status = $5,
+                summary = $6, image_url = $7, floors = $8
+          WHERE id = $9 RETURNING *`,
+        [...values, id],
+      )
+      if (!rows.length) return res.status(404).json({ error: 'Not found' })
+      res.json(rows[0])
+    } catch (err) {
+      if (err.code === '23505') return duplicate(res, 'A project with this web address (slug)')
+      throw err
+    }
+  }),
+)
+
+router.delete(
+  '/projects/:id',
+  adminLimiter,
+  requireAdmin,
+  wrap(async (req, res) => {
+    const id = Number(req.params.id)
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' })
+    const { rowCount } = await query('DELETE FROM projects WHERE id = $1', [id])
+    if (!rowCount) return res.status(404).json({ error: 'Not found' })
+    res.json({ ok: true })
+  }),
+)
+
+router.post(
+  '/services',
+  adminLimiter,
+  requireAdmin,
+  wrap(async (req, res) => {
+    const { error, values } = parseService(req.body)
+    if (error) return res.status(400).json({ error })
+    try {
+      const { rows } = await query(
+        'INSERT INTO services (title, description, icon, sort_order) VALUES ($1, $2, $3, $4) RETURNING *',
+        values,
+      )
+      res.status(201).json(rows[0])
+    } catch (err) {
+      if (err.code === '23505') return duplicate(res, 'A service with this title')
+      throw err
+    }
+  }),
+)
+
+router.put(
+  '/services/:id',
+  adminLimiter,
+  requireAdmin,
+  wrap(async (req, res) => {
+    const id = Number(req.params.id)
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' })
+    const { error, values } = parseService(req.body)
+    if (error) return res.status(400).json({ error })
+    try {
+      const { rows } = await query(
+        'UPDATE services SET title = $1, description = $2, icon = $3, sort_order = $4 WHERE id = $5 RETURNING *',
+        [...values, id],
+      )
+      if (!rows.length) return res.status(404).json({ error: 'Not found' })
+      res.json(rows[0])
+    } catch (err) {
+      if (err.code === '23505') return duplicate(res, 'A service with this title')
+      throw err
+    }
+  }),
+)
+
+router.delete(
+  '/services/:id',
+  adminLimiter,
+  requireAdmin,
+  wrap(async (req, res) => {
+    const id = Number(req.params.id)
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' })
+    const { rowCount } = await query('DELETE FROM services WHERE id = $1', [id])
     if (!rowCount) return res.status(404).json({ error: 'Not found' })
     res.json({ ok: true })
   }),

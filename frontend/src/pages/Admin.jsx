@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ProjectsManager, ServicesManager } from '../components/AdminContent'
 import { deleteInquiry, getInquiries, updateInquiryStatus } from '../lib/api'
 
 // Private leads page: /admin
@@ -349,5 +350,41 @@ export default function Admin() {
       />
     )
   }
-  return <Leads adminKey={adminKey} onSignOut={signOut} />
+  return <AdminShell adminKey={adminKey} onSignOut={signOut} />
+}
+
+/* ---------------------------- TABS SHELL ---------------------------- */
+const TABS = [
+  { id: 'leads', label: 'Leads' },
+  { id: 'projects', label: 'Projects' },
+  { id: 'services', label: 'Services' },
+]
+
+function AdminShell({ adminKey, onSignOut }) {
+  const [tab, setTab] = useState('leads')
+  const panel = { adminKey, onSignOut }
+  return (
+    <>
+      <div className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-5xl gap-1 px-5" role="tablist" aria-label="Admin sections">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+              className={`border-b-2 px-4 py-3 text-sm font-semibold transition ${
+                tab === t.id ? 'border-gold-500 text-navy-900' : 'border-transparent text-slate-500 hover:text-navy-800'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {tab === 'leads' && <Leads {...panel} />}
+      {tab === 'projects' && <ProjectsManager {...panel} />}
+      {tab === 'services' && <ServicesManager {...panel} />}
+    </>
+  )
 }

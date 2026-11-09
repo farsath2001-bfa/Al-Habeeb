@@ -29,3 +29,18 @@ export const updateInquiryStatus = (key, id, status) =>
   request(`/api/inquiries/${id}`, { method: 'PATCH', headers: withKey(key), body: JSON.stringify({ status }) })
 export const deleteInquiry = (key, id) =>
   request(`/api/inquiries/${id}`, { method: 'DELETE', headers: withKey(key) })
+
+// Projects and services (admin only)
+const json = (data) => JSON.stringify(data)
+export const createProject = (key, data) =>
+  request('/api/projects', { method: 'POST', headers: withKey(key), body: json(data) })
+export const updateProject = (key, id, data) =>
+  request(`/api/projects/${id}`, { method: 'PUT', headers: withKey(key), body: json(data) })
+export const deleteProject = (key, id) =>
+  request(`/api/projects/${id}`, { method: 'DELETE', headers: withKey(key) })
+export const createService = (key, data) =>
+  request('/api/services', { method: 'POST', headers: withKey(key), body: json(data) })
+export const updateService = (key, id, data) =>
+  request(`/api/services/${id}`, { method: 'PUT', headers: withKey(key), body: json(data) })
+export const deleteService = (key, id) =>
+  request(`/api/services/${id}`, { method: 'DELETE', headers: withKey(key) })
