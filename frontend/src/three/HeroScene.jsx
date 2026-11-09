@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
+import { OrbitControls, PerformanceMonitor } from '@react-three/drei'
 import { Bloom, EffectComposer } from '@react-three/postprocessing'
+import { initialLowQuality } from './quality'
 import { prefersReducedMotion, useInView } from './useInView'
 import { City, Crane, GlbTower, Ground, Lights, Tower, TOTAL_FLOORS, useOptionalModel } from './parts'
 
@@ -11,6 +12,7 @@ export default function HeroScene() {
   const [p, setP] = useState({ built: 0, clad: 0 })
   const hasModel = useOptionalModel()
   const [viewRef, visible] = useInView()
+  const [low, setLow] = useState(initialLowQuality)
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -33,16 +35,17 @@ export default function HeroScene() {
     <div ref={viewRef} className="h-full w-full">
     <Canvas
       frameloop={visible ? 'always' : 'never'}
-      dpr={[1, 1.5]}
+      dpr={low ? 1 : [1, 1.5]}
       camera={{ position: [21, 11, 24], fov: 36 }}
       gl={{ antialias: true, alpha: true }}
     >
       <fog attach="fog" args={['#08183a', 30, 62]} />
-      <Lights />
+      <PerformanceMonitor bounds={() => [40, 120]} onDecline={() => setLow(true)} />
+      <Lights lite={low} />
       {hasModel ? <GlbTower /> : <Tower built={p.built} clad={p.clad} />}
       {working && !hasModel && <Crane built={p.built} />}
-      <City />
-      <Ground />
+      <City count={low ? 12 : 30} />
+      <Ground lite={low} />
       <OrbitControls
         target={[0, 5.8, 0]}
         autoRotate={!prefersReducedMotion()}
@@ -52,9 +55,11 @@ export default function HeroScene() {
         minPolarAngle={Math.PI / 3.6}
         maxPolarAngle={Math.PI / 2.1}
       />
-      <EffectComposer multisampling={0}>
-        <Bloom luminanceThreshold={0.65} luminanceSmoothing={0.3} intensity={0.7} mipmapBlur radius={0.5} />
-      </EffectComposer>
+      {!low && (
+        <EffectComposer multisampling={0}>
+          <Bloom luminanceThreshold={0.65} luminanceSmoothing={0.3} intensity={0.7} mipmapBlur radius={0.5} />
+        </EffectComposer>
+      )}
     </Canvas>
     </div>
   )

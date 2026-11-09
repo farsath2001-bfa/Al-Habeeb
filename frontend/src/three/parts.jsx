@@ -498,6 +498,9 @@ export function Crane({ built = TOTAL_FLOORS, position = [3.5, 0, -2.7] }) {
 // ---------------------------------------------------------------------------
 // Surroundings: neighbouring buildings with lit windows, plaza, trees
 // ---------------------------------------------------------------------------
+// The facade pictures are shared between neighbouring blocks instead of redrawn for each one.
+const cityFacades = new Map()
+
 export function City({ count = 30 }) {
   const blocks = useMemo(() => {
     const rand = mulberry32(2026)
@@ -510,7 +513,10 @@ export function City({ count = 30 }) {
       const floors = 3 + Math.floor(rand() * 11)
       const h = floors * 0.3
       const bays = Math.max(2, Math.round(w / 0.22))
-      const t = makeFacade(bays, list.length + 100)
+      const variant = 100 + (list.length % 4)
+      const facadeKey = `${bays}-${variant}`
+      if (!cityFacades.has(facadeKey)) cityFacades.set(facadeKey, makeFacade(bays, variant))
+      const t = cityFacades.get(facadeKey)
       const side = (tex) => {
         const c = tex.clone()
         c.wrapT = THREE.RepeatWrapping
@@ -571,7 +577,7 @@ function Trees() {
   )
 }
 
-export function Ground() {
+export function Ground({ lite = false }) {
   return (
     <group>
       <mesh rotation-x={-Math.PI / 2} position={[0, -0.002, 0]}>
@@ -581,19 +587,23 @@ export function Ground() {
       {/* paved plaza around the tower - polished stone, picks up a soft reflection of the tower and sky */}
       <mesh rotation-x={-Math.PI / 2} position={[0, 0.004, 0]}>
         <circleGeometry args={[5.6, 64]} />
-        <MeshReflectorMaterial
-          resolution={512}
-          mirror={0.35}
-          mixBlur={0.6}
-          mixStrength={1.4}
-          blur={[200, 80]}
-          depthScale={0.6}
-          minDepthThreshold={0.4}
-          maxDepthThreshold={1.2}
-          color="#0c1526"
-          metalness={0.4}
-          roughness={0.5}
-        />
+        {lite ? (
+          <meshStandardMaterial color="#111a2e" roughness={0.85} metalness={0.05} envMapIntensity={0.15} />
+        ) : (
+          <MeshReflectorMaterial
+            resolution={512}
+            mirror={0.35}
+            mixBlur={0.6}
+            mixStrength={1.4}
+            blur={[200, 80]}
+            depthScale={0.6}
+            minDepthThreshold={0.4}
+            maxDepthThreshold={1.2}
+            color="#0c1526"
+            metalness={0.4}
+            roughness={0.5}
+          />
+        )}
       </mesh>
       <mesh rotation-x={-Math.PI / 2} position={[0, 0.006, 0]}>
         <ringGeometry args={[5.5, 5.65, 64]} />
@@ -611,15 +621,17 @@ export function Ground() {
         fadeStrength={1.5}
         infiniteGrid
       />
-      <ContactShadows
-        position={[0, 0.008, 0]}
-        opacity={0.5}
-        scale={14}
-        blur={2}
-        far={8}
-        resolution={256}
-        color="#000814"
-      />
+      {!lite && (
+        <ContactShadows
+          position={[0, 0.008, 0]}
+          opacity={0.5}
+          scale={14}
+          blur={2}
+          far={8}
+          resolution={256}
+          color="#000814"
+        />
+      )}
       <Trees />
     </group>
   )
@@ -628,13 +640,13 @@ export function Ground() {
 // ---------------------------------------------------------------------------
 // Lighting: sun + sky glow, plus light panels the glass can reflect
 // ---------------------------------------------------------------------------
-export function Lights() {
+export function Lights({ lite = false }) {
   return (
     <>
       <ambientLight intensity={0.35} color="#9db8ff" />
       <directionalLight position={[9, 12, 7]} intensity={2.0} color="#ffd9a8" />
       <directionalLight position={[-8, 6, -6]} intensity={0.6} color="#6fa8ff" />
-      <Environment resolution={256} frames={1}>
+      <Environment resolution={lite ? 128 : 256} frames={1}>
         <Lightformer form="rect" intensity={2.4} color="#bcd8ff" position={[0, 9, 0]} rotation-x={Math.PI / 2} scale={[24, 24, 1]} />
         <Lightformer form="rect" intensity={4} color="#ffcf99" position={[11, 3, 6]} scale={[10, 7, 1]} target={[0, 0, 0]} />
         <Lightformer form="rect" intensity={2} color="#7fb1ff" position={[-11, 4, -4]} scale={[12, 8, 1]} target={[0, 0, 0]} />

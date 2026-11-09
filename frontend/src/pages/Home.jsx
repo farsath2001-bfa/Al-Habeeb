@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import AutoVideo from '../components/AutoVideo'
 import HeroSlider from '../components/HeroSlider'
 import Icon from '../components/Icon'
 import ProjectCard from '../components/ProjectCard'
@@ -258,12 +259,8 @@ function Showcase() {
             </p>
 
             <p className="mt-6 text-xs tracking-[0.25em] text-glow uppercase">Concept render</p>
-            <video
+            <AutoVideo
               src="/Videos/tower.mp4"
-              autoPlay
-              muted
-              loop
-              playsInline
               aria-label="Concept render of the Al Habeeb tower"
               className="mt-2 w-full rounded-xl border border-white/10"
             />
